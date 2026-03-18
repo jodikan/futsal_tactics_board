@@ -30,7 +30,46 @@ canvas { display: block; border-radius: 8px; width: 100%; cursor: default; box-s
 .frame-dot.active { background: #1D9E75; }
 #status { font-size: 11px; color: #888; text-align: center; padding: 4px; min-height: 16px; }
 #export-progress { display: none; font-size: 11px; color: #555; text-align: center; margin-top: 6px; padding: 6px 8px; background: #f0f0f0; border-radius: 6px; line-height: 1.5; }
-h1 { font-size: 15px; font-weight: 600; color: #222; text-align: center; margin-bottom: 12px; letter-spacing: 0.02em; }
+h1 { font-size: 24px; font-weight: 700; color: #222; text-align: center; margin-bottom: 16px; letter-spacing: 0.01em; }
+/* 데스크탑: 래퍼가 없는 것처럼 동작 */
+.ctrl-group { display: contents; }
+
+/* ── 모바일 반응형 ── */
+@media (max-width: 620px) {
+  body { padding: 12px; }
+  h1 { font-size: 20px; margin-bottom: 12px; }
+
+  /* 캔버스 위, 컨트롤 아래 순서로 세로 배치 */
+  #app { flex-direction: column; gap: 10px; }
+  #canvas-wrap { order: 0; width: 100%; }
+
+  /* 컨트롤: 가로 스크롤 카드 스트립 */
+  #controls {
+    order: 1;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 6px;
+    gap: 8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #controls::-webkit-scrollbar { display: none; }
+
+  /* 그룹 래퍼: 모바일에서 하나의 카드로 묶음 */
+  .ctrl-group { display: flex; flex-direction: column; gap: 8px; min-width: 150px; flex-shrink: 0; }
+  /* 단독 ctrl-section(도구)도 동일한 너비 보장 */
+  #controls > .ctrl-section { min-width: 150px; flex-shrink: 0; }
+
+  /* 터치 타겟 크기 확보 */
+  .tool-btn  { padding: 10px 10px; font-size: 13px; }
+  .action-btn { padding: 10px 8px; font-size: 12px; }
+  .color-dot  { width: 26px; height: 26px; }
+
+  /* 상태 표시 */
+  #status { font-size: 12px; }
+}
 </style>
 </head>
 <body>
@@ -46,36 +85,40 @@ h1 { font-size: 15px; font-weight: 600; color: #222; text-align: center; margin-
         <button class="tool-btn" id="btn-erase" onclick="setTool('erase')">✕ 지우기</button>
       </div>
     </div>
-    <div class="ctrl-section">
-      <div class="ctrl-label">팀 색상</div>
-      <div class="color-row">
-        <div class="color-dot active" style="background:#E24B4A" data-color="#E24B4A" onclick="setColor(this)"></div>
-        <div class="color-dot" style="background:#378ADD" data-color="#378ADD" onclick="setColor(this)"></div>
-        <div class="color-dot" style="background:#EF9F27" data-color="#EF9F27" onclick="setColor(this)"></div>
-        <div class="color-dot" style="background:#1D9E75" data-color="#1D9E75" onclick="setColor(this)"></div>
-        <div class="color-dot" style="background:#FFFFFF;border:1px solid #aaa" data-color="#FFFFFF" onclick="setColor(this)"></div>
+    <div class="ctrl-group">
+      <div class="ctrl-section">
+        <div class="ctrl-label">팀 색상</div>
+        <div class="color-row">
+          <div class="color-dot active" style="background:#E24B4A" data-color="#E24B4A" onclick="setColor(this)"></div>
+          <div class="color-dot" style="background:#378ADD" data-color="#378ADD" onclick="setColor(this)"></div>
+          <div class="color-dot" style="background:#EF9F27" data-color="#EF9F27" onclick="setColor(this)"></div>
+          <div class="color-dot" style="background:#1D9E75" data-color="#1D9E75" onclick="setColor(this)"></div>
+          <div class="color-dot" style="background:#FFFFFF;border:1px solid #aaa" data-color="#FFFFFF" onclick="setColor(this)"></div>
+        </div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-label">프레임</div>
+        <button class="action-btn" onclick="addFrame()">+ 프레임 추가</button>
+        <button class="action-btn" onclick="deleteFrame()">프레임 삭제</button>
+        <div style="background:#f9f9f9;border-radius:6px;padding:8px;margin-top:6px;border:1px solid #eee;">
+          <div class="ctrl-label">타임라인</div>
+          <div class="frame-dots" id="frame-dots"></div>
+        </div>
       </div>
     </div>
-    <div class="ctrl-section">
-      <div class="ctrl-label">프레임</div>
-      <button class="action-btn" onclick="addFrame()">+ 프레임 추가</button>
-      <button class="action-btn" onclick="deleteFrame()">프레임 삭제</button>
-      <div style="background:#f9f9f9;border-radius:6px;padding:8px;margin-top:6px;border:1px solid #eee;">
-        <div class="ctrl-label">타임라인</div>
-        <div class="frame-dots" id="frame-dots"></div>
+    <div class="ctrl-group">
+      <div class="ctrl-section">
+        <div class="ctrl-label">재생</div>
+        <button class="action-btn primary" id="btn-play" onclick="togglePlay()">▶ 재생</button>
+        <button class="action-btn" onclick="resetBoard()">↺ 초기화</button>
       </div>
+      <div class="ctrl-section">
+        <div class="ctrl-label">내보내기</div>
+        <button class="action-btn primary" id="btn-export" onclick="exportVideo()">▼ 영상 저장</button>
+        <div id="export-progress"></div>
+      </div>
+      <div id="status">선수를 추가하고 프레임을 만들어보세요</div>
     </div>
-    <div class="ctrl-section">
-      <div class="ctrl-label">재생</div>
-      <button class="action-btn primary" id="btn-play" onclick="togglePlay()">▶ 재생</button>
-      <button class="action-btn" onclick="resetBoard()">↺ 초기화</button>
-    </div>
-    <div class="ctrl-section">
-      <div class="ctrl-label">내보내기</div>
-      <button class="action-btn primary" id="btn-export" onclick="exportVideo()">▼ 영상 저장</button>
-      <div id="export-progress"></div>
-    </div>
-    <div id="status">선수를 추가하고 프레임을 만들어보세요</div>
   </div>
   <div id="canvas-wrap">
     <canvas id="board"></canvas>
@@ -85,7 +128,9 @@ h1 { font-size: 15px; font-weight: 600; color: #222; text-align: center; margin-
 <script>
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
-const W = 560, H = 380;
+const IS_MOBILE = window.innerWidth < 620;
+const W = IS_MOBILE ? 380 : 560;
+const H = IS_MOBILE ? 560 : 380;
 canvas.width = W; canvas.height = H;
 
 let tool = 'select', currentColor = '#E24B4A';
@@ -119,21 +164,47 @@ function drawCourtOn(c) {
   const g = c.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'#2d6a2d'); g.addColorStop(1,'#1e4d1e');
   c.fillStyle=g; c.fillRect(0,0,W,H);
-  c.fillStyle='rgba(255,255,255,0.03)';
-  for(let i=0;i<W;i+=28) c.fillRect(i,0,14,H);
-  c.strokeStyle='rgba(255,255,255,0.85)'; c.lineWidth=2;
-  const px=30,py=25;
-  c.strokeRect(px,py,W-px*2,H-py*2);
-  c.beginPath(); c.moveTo(W/2,py); c.lineTo(W/2,H-py); c.stroke();
-  c.beginPath(); c.arc(W/2,H/2,40,0,Math.PI*2); c.stroke();
-  c.beginPath(); c.arc(W/2,H/2,3,0,Math.PI*2);
-  c.fillStyle='rgba(255,255,255,0.85)'; c.fill();
-  [[px,H/2-70,80,140],[W-px-80,H/2-70,80,140]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
-  [[px,H/2-40,40,80],[W-px-40,H/2-40,40,80]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
-  c.strokeStyle='rgba(255,255,255,0.5)'; c.lineWidth=3;
-  c.strokeRect(px-12,H/2-30,12,60); c.strokeRect(W-px,H/2-30,12,60);
-  c.fillStyle='rgba(255,255,255,0.85)';
-  [px+55,W-px-55].forEach(x=>{c.beginPath();c.arc(x,H/2,3,0,Math.PI*2);c.fill();});
+
+  if (IS_MOBILE) {
+    /* ── 세로 코트 (모바일) ── */
+    c.fillStyle='rgba(255,255,255,0.03)';
+    for(let i=0;i<H;i+=28) c.fillRect(0,i,W,14); // 가로 잔디줄
+    c.strokeStyle='rgba(255,255,255,0.85)'; c.lineWidth=2;
+    const px=25, py=30;
+    c.strokeRect(px,py,W-px*2,H-py*2); // 외곽선
+    // 하프라인 (가로)
+    c.beginPath(); c.moveTo(px,H/2); c.lineTo(W-px,H/2); c.stroke();
+    // 센터서클
+    c.beginPath(); c.arc(W/2,H/2,40,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(W/2,H/2,3,0,Math.PI*2);
+    c.fillStyle='rgba(255,255,255,0.85)'; c.fill();
+    // 페널티 에어리어 (위/아래)
+    [[W/2-70,py,140,80],[W/2-70,H-py-80,140,80]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+    [[W/2-40,py,80,40],[W/2-40,H-py-40,80,40]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+    // 골대 (위/아래)
+    c.strokeStyle='rgba(255,255,255,0.5)'; c.lineWidth=3;
+    c.strokeRect(W/2-25,py-12,50,12); c.strokeRect(W/2-25,H-py,50,12);
+    // 페널티 스팟
+    c.fillStyle='rgba(255,255,255,0.85)';
+    [py+55,H-py-55].forEach(y=>{c.beginPath();c.arc(W/2,y,3,0,Math.PI*2);c.fill();});
+  } else {
+    /* ── 가로 코트 (데스크탑) ── */
+    c.fillStyle='rgba(255,255,255,0.03)';
+    for(let i=0;i<W;i+=28) c.fillRect(i,0,14,H);
+    c.strokeStyle='rgba(255,255,255,0.85)'; c.lineWidth=2;
+    const px=30,py=25;
+    c.strokeRect(px,py,W-px*2,H-py*2);
+    c.beginPath(); c.moveTo(W/2,py); c.lineTo(W/2,H-py); c.stroke();
+    c.beginPath(); c.arc(W/2,H/2,40,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(W/2,H/2,3,0,Math.PI*2);
+    c.fillStyle='rgba(255,255,255,0.85)'; c.fill();
+    [[px,H/2-70,80,140],[W-px-80,H/2-70,80,140]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+    [[px,H/2-40,40,80],[W-px-40,H/2-40,40,80]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+    c.strokeStyle='rgba(255,255,255,0.5)'; c.lineWidth=3;
+    c.strokeRect(px-12,H/2-30,12,60); c.strokeRect(W-px,H/2-30,12,60);
+    c.fillStyle='rgba(255,255,255,0.85)';
+    [px+55,W-px-55].forEach(x=>{c.beginPath();c.arc(x,H/2,3,0,Math.PI*2);c.fill();});
+  }
 }
 
 function drawPlayerOn(c,p,x,y) {
