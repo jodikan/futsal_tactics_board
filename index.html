@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>풋살 전술판</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; padding: 16px; }
+#app { display: flex; gap: 12px; flex-wrap: wrap; max-width: 800px; margin: 0 auto; }
+#controls { width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+#canvas-wrap { flex: 1; min-width: 280px; }
+canvas { display: block; border-radius: 8px; width: 100%; cursor: default; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.ctrl-section { background: #fff; border-radius: 8px; padding: 10px; border: 1px solid #e5e5e5; }
+.ctrl-label { font-size: 11px; color: #888; margin-bottom: 6px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.tool-btn { width: 100%; padding: 7px 10px; font-size: 13px; border: 1px solid #ddd; border-radius: 6px; background: #fff; color: #222; cursor: pointer; text-align: left; transition: background 0.15s; }
+.tool-btn:hover { background: #f5f5f5; }
+.tool-btn.active { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+.color-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.color-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.1s; }
+.color-dot:hover { transform: scale(1.1); }
+.color-dot.active { border-color: #222; }
+.action-btn { width: 100%; padding: 8px; font-size: 12px; border-radius: 6px; border: 1px solid #ddd; background: #fff; color: #222; cursor: pointer; font-weight: 500; margin-bottom: 4px; }
+.action-btn:last-child { margin-bottom: 0; }
+.action-btn:hover { background: #f5f5f5; }
+.action-btn.primary { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+.action-btn.primary:hover { background: #0F6E56; }
+.frame-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.frame-dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; cursor: pointer; }
+.frame-dot.active { background: #1D9E75; }
+#status { font-size: 11px; color: #888; text-align: center; padding: 4px; min-height: 16px; }
+#export-progress { display: none; font-size: 11px; color: #555; text-align: center; margin-top: 6px; padding: 6px 8px; background: #f0f0f0; border-radius: 6px; line-height: 1.5; }
+h1 { font-size: 15px; font-weight: 600; color: #222; text-align: center; margin-bottom: 12px; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<h1>⚽ 풋살 전술판</h1>
+<div id="app">
+  <div id="controls">
+    <div class="ctrl-section">
+      <div class="ctrl-label">도구</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="tool-btn active" id="btn-select" onclick="setTool('select')">↖ 선택 / 이동</button>
+        <button class="tool-btn" id="btn-player" onclick="setTool('player')">+ 선수 추가</button>
+        <button class="tool-btn" id="btn-ball" onclick="setTool('ball')">⚽ 공 추가</button>
+        <button class="tool-btn" id="btn-erase" onclick="setTool('erase')">✕ 지우기</button>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-label">팀 색상</div>
+      <div class="color-row">
+        <div class="color-dot active" style="background:#E24B4A" data-color="#E24B4A" onclick="setColor(this)"></div>
+        <div class="color-dot" style="background:#378ADD" data-color="#378ADD" onclick="setColor(this)"></div>
+        <div class="color-dot" style="background:#EF9F27" data-color="#EF9F27" onclick="setColor(this)"></div>
+        <div class="color-dot" style="background:#1D9E75" data-color="#1D9E75" onclick="setColor(this)"></div>
+        <div class="color-dot" style="background:#FFFFFF;border:1px solid #aaa" data-color="#FFFFFF" onclick="setColor(this)"></div>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-label">프레임</div>
+      <button class="action-btn" onclick="addFrame()">+ 프레임 추가</button>
+      <button class="action-btn" onclick="deleteFrame()">프레임 삭제</button>
+      <div style="background:#f9f9f9;border-radius:6px;padding:8px;margin-top:6px;border:1px solid #eee;">
+        <div class="ctrl-label">타임라인</div>
+        <div class="frame-dots" id="frame-dots"></div>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-label">재생</div>
+      <button class="action-btn primary" id="btn-play" onclick="togglePlay()">▶ 재생</button>
+      <button class="action-btn" onclick="resetBoard()">↺ 초기화</button>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-label">내보내기</div>
+      <button class="action-btn primary" id="btn-export" onclick="exportVideo()">▼ 영상 저장</button>
+      <div id="export-progress"></div>
+    </div>
+    <div id="status">선수를 추가하고 프레임을 만들어보세요</div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="board"></canvas>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const W = 560, H = 380;
+canvas.width = W; canvas.height = H;
+
+let tool = 'select', currentColor = '#E24B4A';
+let players = [];
+let frames = [{ positions: {}, ballPos: null }];
+let currentFrame = 0;
+let isPlaying = false, animRaf = null;
+let dragging = null, isDown = false, nextId = 1;
+
+function frame() { return frames[currentFrame]; }
+
+function getNextNum(color) {
+  const used = new Set(players.filter(p => p.color === color).map(p => p.num));
+  let n = 1; while (used.has(n)) n++; return n;
+}
+
+function lerpPos(fromF, toF, t) {
+  const positions = {};
+  players.forEach(p => {
+    const a = fromF.positions[p.id], b = toF.positions[p.id];
+    if (a && b) positions[p.id] = { x: a.x+(b.x-a.x)*t, y: a.y+(b.y-a.y)*t };
+    else if (a) positions[p.id] = a;
+    else if (b) positions[p.id] = b;
+  });
+  const ba = fromF.ballPos, bb = toF.ballPos;
+  const ballPos = (ba && bb) ? { x: ba.x+(bb.x-ba.x)*t, y: ba.y+(bb.y-ba.y)*t } : ba || bb || null;
+  return { positions, ballPos };
+}
+
+function drawCourtOn(c) {
+  const g = c.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#2d6a2d'); g.addColorStop(1,'#1e4d1e');
+  c.fillStyle=g; c.fillRect(0,0,W,H);
+  c.fillStyle='rgba(255,255,255,0.03)';
+  for(let i=0;i<W;i+=28) c.fillRect(i,0,14,H);
+  c.strokeStyle='rgba(255,255,255,0.85)'; c.lineWidth=2;
+  const px=30,py=25;
+  c.strokeRect(px,py,W-px*2,H-py*2);
+  c.beginPath(); c.moveTo(W/2,py); c.lineTo(W/2,H-py); c.stroke();
+  c.beginPath(); c.arc(W/2,H/2,40,0,Math.PI*2); c.stroke();
+  c.beginPath(); c.arc(W/2,H/2,3,0,Math.PI*2);
+  c.fillStyle='rgba(255,255,255,0.85)'; c.fill();
+  [[px,H/2-70,80,140],[W-px-80,H/2-70,80,140]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+  [[px,H/2-40,40,80],[W-px-40,H/2-40,40,80]].forEach(([x,y,w,h])=>c.strokeRect(x,y,w,h));
+  c.strokeStyle='rgba(255,255,255,0.5)'; c.lineWidth=3;
+  c.strokeRect(px-12,H/2-30,12,60); c.strokeRect(W-px,H/2-30,12,60);
+  c.fillStyle='rgba(255,255,255,0.85)';
+  [px+55,W-px-55].forEach(x=>{c.beginPath();c.arc(x,H/2,3,0,Math.PI*2);c.fill();});
+}
+
+function drawPlayerOn(c,p,x,y) {
+  c.save();
+  c.shadowColor='rgba(0,0,0,0.45)'; c.shadowBlur=7;
+  c.beginPath(); c.arc(x,y,14,0,Math.PI*2);
+  c.fillStyle=p.color; c.fill();
+  c.strokeStyle='rgba(255,255,255,0.9)'; c.lineWidth=2; c.stroke();
+  c.shadowBlur=0;
+  c.fillStyle=p.color==='#FFFFFF'?'#333':'#fff';
+  c.font='bold 11px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(p.num,x,y); c.restore();
+}
+
+function drawBallOn(c,x,y) {
+  c.save();
+  c.shadowColor='rgba(0,0,0,0.5)'; c.shadowBlur=5;
+  c.beginPath(); c.arc(x,y,9,0,Math.PI*2);
+  c.fillStyle='#fff'; c.fill();
+  c.strokeStyle='#333'; c.lineWidth=1.5; c.stroke();
+  c.shadowBlur=0;
+  c.font='12px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+  c.fillText('⚽',x,y); c.restore();
+}
+
+function drawGhostTrails() {
+  if (isPlaying || currentFrame >= frames.length-1) return;
+  const next = frames[currentFrame+1];
+  players.forEach(p => {
+    const a = frame().positions[p.id], b = next.positions[p.id];
+    if (!a||!b) return;
+    ctx.save();
+    ctx.strokeStyle=p.color; ctx.globalAlpha=0.25; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    const angle=Math.atan2(b.y-a.y,b.x-a.x);
+    ctx.setLineDash([]); ctx.fillStyle=p.color; ctx.globalAlpha=0.25;
+    ctx.beginPath();
+    ctx.moveTo(b.x+Math.cos(angle)*8,b.y+Math.sin(angle)*8);
+    ctx.lineTo(b.x+Math.cos(angle-2.5)*5,b.y+Math.sin(angle-2.5)*5);
+    ctx.lineTo(b.x+Math.cos(angle+2.5)*5,b.y+Math.sin(angle+2.5)*5);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  });
+  const ba=frame().ballPos, bb=next.ballPos;
+  if(ba&&bb){
+    ctx.save(); ctx.strokeStyle='#fff'; ctx.globalAlpha=0.2; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(ba.x,ba.y); ctx.lineTo(bb.x,bb.y); ctx.stroke(); ctx.restore();
+  }
+}
+
+function renderState(positions, ballPos) {
+  ctx.clearRect(0,0,W,H);
+  drawCourtOn(ctx);
+  if(!isPlaying) drawGhostTrails();
+  players.forEach(p => { const pos=positions[p.id]; if(pos) drawPlayerOn(ctx,p,pos.x,pos.y); });
+  if(ballPos) drawBallOn(ctx,ballPos.x,ballPos.y);
+}
+
+function render() { const f=frame(); renderState(f.positions,f.ballPos); }
+
+function updateFrameDots() {
+  const el=document.getElementById('frame-dots');
+  el.innerHTML='';
+  frames.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='frame-dot'+(i===currentFrame?' active':'');
+    d.onclick=()=>{ if(!isPlaying){currentFrame=i;updateFrameDots();render();} };
+    el.appendChild(d);
+  });
+  document.getElementById('status').textContent=`프레임 ${currentFrame+1} / ${frames.length}`;
+}
+
+function setTool(t) {
+  tool=t;
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+t).classList.add('active');
+  canvas.style.cursor=t==='select'?'default':'crosshair';
+}
+
+function setColor(el) {
+  document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('active'));
+  el.classList.add('active'); currentColor=el.dataset.color;
+}
+
+function addFrame() {
+  const copy=JSON.parse(JSON.stringify(frame()));
+  frames.splice(currentFrame+1,0,copy); currentFrame++;
+  updateFrameDots(); render();
+}
+
+function deleteFrame() {
+  if(frames.length<=1) return;
+  frames.splice(currentFrame,1);
+  if(currentFrame>=frames.length) currentFrame=frames.length-1;
+  updateFrameDots(); render();
+}
+
+function togglePlay() {
+  isPlaying=!isPlaying;
+  const btn=document.getElementById('btn-play');
+  if(isPlaying) {
+    btn.textContent='⏹ 정지';
+    let fi=0; let phaseStart=null; let phase='move';
+    const DURATION=800, PAUSE=300;
+    function animate(ts) {
+      if(!isPlaying) return;
+      if(!phaseStart) phaseStart=ts;
+      const elapsed=ts-phaseStart;
+      if(phase==='move') {
+        const t=Math.min(elapsed/DURATION,1);
+        const ease=t<0.5?2*t*t:-1+(4-2*t)*t;
+        const fromF=frames[fi%frames.length], toF=frames[(fi+1)%frames.length];
+        const state=lerpPos(fromF,toF,ease);
+        renderState(state.positions,state.ballPos);
+        if(t>=1){ phase='pause'; phaseStart=ts; fi=(fi+1)%frames.length; currentFrame=fi; updateFrameDots(); }
+      } else {
+        renderState(frames[fi].positions,frames[fi].ballPos);
+        if(elapsed>=PAUSE){ phase='move'; phaseStart=ts; }
+      }
+      animRaf=requestAnimationFrame(animate);
+    }
+    animRaf=requestAnimationFrame(animate);
+  } else {
+    btn.textContent='▶ 재생';
+    cancelAnimationFrame(animRaf); render();
+  }
+}
+
+function resetBoard() {
+  if(!confirm('전체 초기화할까요?')) return;
+  players=[]; frames=[{positions:{},ballPos:null}]; currentFrame=0; nextId=1;
+  updateFrameDots(); render();
+}
+
+function getCanvasPos(e) {
+  const r=canvas.getBoundingClientRect();
+  const scaleX=W/r.width, scaleY=H/r.height;
+  const clientX=e.touches?e.touches[0].clientX:e.clientX;
+  const clientY=e.touches?e.touches[0].clientY:e.clientY;
+  return {x:(clientX-r.left)*scaleX, y:(clientY-r.top)*scaleY};
+}
+
+function hitTest(pos) {
+  const f=frame();
+  for(let i=players.length-1;i>=0;i--) {
+    const p=players[i], pp=f.positions[p.id];
+    if(pp&&Math.hypot(pos.x-pp.x,pos.y-pp.y)<16) return {type:'player',id:p.id};
+  }
+  if(f.ballPos&&Math.hypot(pos.x-f.ballPos.x,pos.y-f.ballPos.y)<12) return {type:'ball'};
+  return null;
+}
+
+canvas.addEventListener('mousedown',onDown);
+canvas.addEventListener('mousemove',onMove);
+canvas.addEventListener('mouseup',onUp);
+canvas.addEventListener('touchstart',e=>{e.preventDefault();onDown(e);},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();onMove(e);},{passive:false});
+canvas.addEventListener('touchend',e=>{e.preventDefault();onUp(e);},{passive:false});
+
+function onDown(e) {
+  if(isPlaying) return;
+  isDown=true;
+  const pos=getCanvasPos(e), f=frame();
+  if(tool==='player') {
+    const id='p'+nextId++;
+    players.push({id,color:currentColor,num:getNextNum(currentColor)});
+    f.positions[id]={x:pos.x,y:pos.y}; render();
+  } else if(tool==='ball') {
+    f.ballPos={x:pos.x,y:pos.y}; render();
+  } else if(tool==='select') {
+    dragging=hitTest(pos);
+  } else if(tool==='erase') {
+    const hit=hitTest(pos);
+    if(hit) {
+      if(hit.type==='player'){ players=players.filter(p=>p.id!==hit.id); frames.forEach(fr=>delete fr.positions[hit.id]); }
+      else frames.forEach(fr=>fr.ballPos=null);
+      render();
+    }
+  }
+}
+
+function onMove(e) {
+  if(!isDown||isPlaying) return;
+  const pos=getCanvasPos(e), f=frame();
+  if(tool==='select'&&dragging) {
+    if(dragging.type==='player') f.positions[dragging.id]={x:pos.x,y:pos.y};
+    else if(dragging.type==='ball'&&f.ballPos){f.ballPos.x=pos.x;f.ballPos.y=pos.y;}
+    render();
+  }
+}
+
+function onUp() { isDown=false; dragging=null; }
+
+/* ── 영상 내보내기: canvas.captureStream + MediaRecorder ── */
+const MOVE_MS = 800;   // 프레임 간 이동 시간 (ms)
+const PAUSE_MS = 600;  // 프레임 도착 후 정지 시간 (ms)
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function exportVideo() {
+  if (frames.length < 2) {
+    alert('프레임이 2개 이상 있어야 영상을 만들 수 있습니다.');
+    return;
+  }
+  if (isPlaying) togglePlay(); // 재생 중이면 정지
+
+  const prog = document.getElementById('export-progress');
+  const btn  = document.getElementById('btn-export');
+  prog.style.display = 'block';
+  btn.disabled = true;
+
+  try {
+    // 브라우저 지원 확인
+    if (!window.MediaRecorder || !canvas.captureStream) {
+      throw new Error('이 브라우저는 영상 저장을 지원하지 않습니다.\nChrome 또는 Edge를 사용해 주세요.');
+    }
+
+    // 지원 코덱 선택 (MP4 우선 → WebM 폴백)
+    const candidates = [
+      'video/mp4;codecs=avc1',   // Chrome 130+, Safari
+      'video/mp4',               // Safari 폴백
+      'video/webm;codecs=vp9',   // 구형 Chrome/Edge
+      'video/webm;codecs=vp8',
+      'video/webm',
+    ];
+    const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+
+    // 캔버스 스트림 + 레코더 설정
+    const stream   = canvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+    const chunks   = [];
+    recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+
+    // 녹화 완료 시 다운로드
+    const whenStopped = new Promise(resolve => {
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `futsal_tactic.${ext}`;
+        a.click();
+        prog.textContent = `✅ 영상 저장 완료! (.${ext})`;
+        btn.disabled = false;
+        setTimeout(() => { prog.style.display = 'none'; render(); }, 3000);
+        resolve();
+      };
+    });
+
+    recorder.start(100); // 100ms 단위로 데이터 수집
+
+    const totalSteps = frames.length - 1;
+    const totalMs    = PAUSE_MS + totalSteps * (MOVE_MS + PAUSE_MS);
+
+    // ① 첫 프레임 정지
+    renderState(frames[0].positions, frames[0].ballPos);
+    prog.textContent = `녹화 중... 0% — 잠시 기다려 주세요`;
+    await sleep(PAUSE_MS);
+
+    // ② 각 전환 애니메이션 → 도착 정지 반복
+    for (let fi = 0; fi < totalSteps; fi++) {
+      const fromF = frames[fi];
+      const toF   = frames[fi + 1];
+      const elapsed0 = PAUSE_MS + fi * (MOVE_MS + PAUSE_MS);
+
+      // 이동 애니메이션
+      await new Promise(resolve => {
+        let startTs = null;
+        function tick(ts) {
+          if (!startTs) startTs = ts;
+          const t    = Math.min((ts - startTs) / MOVE_MS, 1);
+          const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+          const s    = lerpPos(fromF, toF, ease);
+          renderState(s.positions, s.ballPos);
+          const pct = Math.round((elapsed0 + t * MOVE_MS) / totalMs * 100);
+          prog.textContent = `녹화 중... ${pct}% (${fi+1}/${totalSteps} 전환)`;
+          if (t < 1) requestAnimationFrame(tick);
+          else resolve();
+        }
+        requestAnimationFrame(tick);
+      });
+
+      // 도착 프레임 정지
+      renderState(toF.positions, toF.ballPos);
+      await sleep(PAUSE_MS);
+    }
+
+    recorder.stop();
+    await whenStopped;
+
+  } catch (err) {
+    prog.textContent = '❌ 오류: ' + err.message;
+    btn.disabled = false;
+    console.error(err);
+  }
+}
+
+updateFrameDots(); render();
+</script>
+
+<div style="max-width:800px;margin:16px auto 0;background:#fff;border-radius:12px;border:1px solid #e5e5e5;padding:20px 24px;">
+  <div style="font-size:13px;font-weight:600;color:#222;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">📖 이용 방법</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#1D9E75;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">① 배치</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#1D9E75;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>팀 색상</b> 선택 후 <b>선수 추가</b> 클릭 → 코트 원하는 위치 클릭</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#1D9E75;font-weight:600;flex-shrink:0;">+</span>
+          <span>같은 색 = 같은 팀, 번호는 팀별로 자동 부여</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#1D9E75;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>공 추가</b>로 공 위치도 지정 가능</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#1D9E75;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>선택/이동</b>으로 위치 드래그 조정</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#378ADD;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">② 전술 흐름 만들기</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#378ADD;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>프레임 추가</b> → 선수 위치 변경 → 반복</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#378ADD;font-weight:600;flex-shrink:0;">+</span>
+          <span>편집 중엔 다음 프레임 이동 방향이 <span style="opacity:0.6;">점선 화살표</span>로 미리 표시됨</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#378ADD;font-weight:600;flex-shrink:0;">+</span>
+          <span>타임라인 점 클릭으로 프레임 간 이동</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#378ADD;font-weight:600;flex-shrink:0;">+</span>
+          <span>프레임은 최소 2개 이상 있어야 움직임이 보임</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#E24B4A;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">③ 재생 & 공유</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#E24B4A;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>재생</b> 버튼으로 애니메이션 미리 확인</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#E24B4A;font-weight:600;flex-shrink:0;">+</span>
+          <span><b>영상 저장</b>으로 WebM/MP4 파일 다운로드 (Chrome·Edge 권장)</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#E24B4A;font-weight:600;flex-shrink:0;">+</span>
+          <span>저장된 영상은 카톡·단톡방에 파일로 공유 가능</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#444;line-height:1.5;">
+          <span style="color:#E24B4A;font-weight:600;flex-shrink:0;">+</span>
+          <span>녹화 중 화면이 잠깐 재생됩니다 — 조작하지 마세요</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
